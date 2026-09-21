@@ -8,7 +8,7 @@ def spark():
         .appName("tests")
         .config("spark.sql.shuffle.partitions", "4")
         .config("spark.ui.enabled","false")
-        .get0Create()
+        .getOrCreate()
     )
     yield s
     s.stop()
