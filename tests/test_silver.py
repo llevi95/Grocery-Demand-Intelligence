@@ -3,6 +3,7 @@ from pyspark.sql import functions as F
 from src.silver import complete_grid
 from src.silver import forward_fill_oil
 from src.silver import holiday_flags
+from src.silver import build_silver, scope
 
 
 def _sales(spark):
@@ -49,3 +50,26 @@ def test_holiday_flags_one_row_per_date_and_filters(spark):
     ], "date date, type string, locale string, locale_name string, description string, transferred boolean")
     out = {r["date"]: (r["national_holiday"], r["any_holiday"]) for r in holiday_flags(hol).collect()}
     assert out == {d(2017, 1, 1): (1, 1), d(2017, 1, 2): (0, 1)}
+
+def test_build_silver_keeps_grid_row_count_and_fills(spark):
+    d = dt.date
+    sales = spark.createDataFrame([(1, "A", d(2017, 1, 1), 5.0, 0)],
+                                  "store_nbr int, family string, date date, sales double, onpromotion int")
+    stores = spark.createDataFrame([(1, "Quito", "Pichincha", "D", 13)],
+                                   "store_nbr int, city string, state string, type string, cluster int")
+    oil = spark.createDataFrame([(d(2017, 1, 1), 50.0)], "date date, dcoilwtico double")
+    hol = spark.createDataFrame([(d(2017, 1, 2), "Holiday", "National", "Ecuador", "x", False)],
+                                "date date, type string, locale string, locale_name string, description string, transferred boolean")
+    tx = spark.createDataFrame([(d(2017, 1, 1), 1, 100)], "date date, store_nbr int, transactions int")
+
+    out = build_silver(sales, stores, oil, hol, tx, "2017-01-01", "2017-01-03").orderBy("date").collect()
+    assert len(out) == 3
+    assert [r["oil_price"] for r in out] == [50.0, 50.0, 50.0]
+    assert [r["national_holiday"] for r in out] == [0, 1, 0]
+    assert [r["transactions"] for r in out] == [100, 0, 0]
+    assert out[0]["city"] == "Quito"
+
+
+def test_scope_filters_both_keys(spark):
+    df = spark.createDataFrame([(1, "A"), (1, "B"), (2, "A")], "store_nbr int, family string")
+    assert scope(df, [1], ["A"]).count() == 1

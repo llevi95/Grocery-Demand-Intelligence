@@ -38,3 +38,25 @@ def holiday_flags(holidays: DataFrame) -> DataFrame:
                 .groupBy("date")
                 .agg(F.max("is_national").alias("national_holiday"), F.lit(1).alias("any_holiday"))
     )
+
+START, END = "2013-01-01", "2017-08-15"
+
+SCOPED_STORES = [44, 51, 50, 9, 39, 34, 40, 1, 24, 38, 28, 43]
+SCOPED_FAMILIES = ["BREAD/BAKERY", "DAIRY", "PRODUCE", "BEVERAGES",
+                   "CLEANING", "GROCERY I", "POULTRY", "FROZEN FOODS"]
+
+
+def build_silver(sales, stores, oil, holidays, transactions, start: str = START, end: str = END) -> DataFrame:
+    """One row per store x family x day, joined with store metadata, oil, holiday flags, transactions."""
+    grid = complete_grid(sales, start, end)
+    return (
+        grid.join(stores, "store_nbr", "left")
+            .join(forward_fill_oil(oil, start, end), "date", "left")
+            .join(holiday_flags(holidays), "date", "left")
+            .join(transactions, ["store_nbr", "date"], "left")
+            .fillna({"national_holiday": 0, "any_holiday": 0, "transactions": 0})
+    )
+
+
+def scope(df: DataFrame, stores: list[int] = SCOPED_STORES, families: list[str] = SCOPED_FAMILIES) -> DataFrame:
+    return df.filter(F.col("store_nbr").isin(stores) & F.col("family").isin(families))
