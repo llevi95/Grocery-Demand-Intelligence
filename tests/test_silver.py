@@ -2,6 +2,7 @@ import datetime as dt
 from pyspark.sql import functions as F
 from src.silver import complete_grid
 from src.silver import forward_fill_oil
+from src.silver import holiday_flags
 
 
 def _sales(spark):
@@ -35,3 +36,16 @@ def test_forward_fill_oil_fills_gaps_and_nulls(spark):
     out = forward_fill_oil(oil, "2017-01-01", "2017-01-05").orderBy("date").collect()
     assert [r["oil_price"] for r in out] == [None, 50.0, 50.0, 50.0, 50.0]
     assert set(forward_fill_oil(oil, "2017-01-01", "2017-01-05").columns) == {"date", "oil_price"}
+
+def test_holiday_flags_one_row_per_date_and_filters(spark):
+    d = dt.date
+    hol = spark.createDataFrame([
+        (d(2017, 1, 1), "Holiday", "National", "Ecuador", "Primer dia", False),
+        (d(2017, 1, 1), "Holiday", "Local", "Quito", "Local thing", False),     # duplicate date
+        (d(2017, 1, 2), "Holiday", "Local", "Cuenca", "Fundacion", False),      # local only
+        (d(2017, 1, 3), "Holiday", "National", "Ecuador", "Moved", True),       # transferred -> ignored
+        (d(2017, 1, 4), "Work Day", "National", "Ecuador", "Recupero", False),  # work day -> ignored
+        (d(2017, 1, 5), "Event", "National", "Ecuador", "Terremoto", False),    # event -> ignored
+    ], "date date, type string, locale string, locale_name string, description string, transferred boolean")
+    out = {r["date"]: (r["national_holiday"], r["any_holiday"]) for r in holiday_flags(hol).collect()}
+    assert out == {d(2017, 1, 1): (1, 1), d(2017, 1, 2): (0, 1)}
