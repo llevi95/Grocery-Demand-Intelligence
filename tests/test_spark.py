@@ -1,5 +1,5 @@
+from src.paths import BRONZE, RAW, ROOT
 from src.spark import get_spark
-from src.paths import ROOT, RAW, BRONZE
 
 
 def test_get_spark_applies_config():

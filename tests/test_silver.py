@@ -1,9 +1,14 @@
 import datetime as dt
+
 from pyspark.sql import functions as F
-from src.silver import complete_grid
-from src.silver import forward_fill_oil
-from src.silver import holiday_flags
-from src.silver import build_silver, scope
+
+from src.silver import (
+    build_silver,
+    complete_grid,
+    forward_fill_oil,
+    holiday_flags,
+    scope,
+)
 
 
 def _sales(spark):
