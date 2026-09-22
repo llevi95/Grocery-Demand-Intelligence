@@ -1,6 +1,7 @@
 import datetime as dt
 from pyspark.sql import functions as F
 from src.silver import complete_grid
+from src.silver import forward_fill_oil
 
 
 def _sales(spark):
@@ -25,3 +26,12 @@ def test_missing_days_filled_with_zero_and_existing_kept(spark):
     assert row["sales"] == 0.0 and row["onpromotion"] == 0
     row = out.filter((F.col("store_nbr") == 1) & (F.col("date") == dt.date(2017, 1, 3))).first()
     assert row["sales"] == 7.0 and row["onpromotion"] == 1
+
+def test_forward_fill_oil_fills_gaps_and_nulls(spark):
+    oil = spark.createDataFrame(
+        [(dt.date(2017, 1, 1), None), (dt.date(2017, 1, 2), 50.0), (dt.date(2017, 1, 4), None)],
+        "date date, dcoilwtico double",
+    )
+    out = forward_fill_oil(oil, "2017-01-01", "2017-01-05").orderBy("date").collect()
+    assert [r["oil_price"] for r in out] == [None, 50.0, 50.0, 50.0, 50.0]
+    assert set(forward_fill_oil(oil, "2017-01-01", "2017-01-05").columns) == {"date", "oil_price"}

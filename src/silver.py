@@ -16,3 +16,13 @@ def complete_grid(sales: DataFrame, start: str, end: str) -> DataFrame:
                   ["store_nbr", "family", "date"], "left")
             .fillna({"sales": 0.0, "onpromotion": 0})
     )
+
+def forward_fill_oil(oil: DataFrame, start: str, end: str) -> DataFrame:
+    """Daily oil price with weekends/nulls forward-filled. Unpartitioned window: OK for ~1.7k rows only."""
+    dates = date_range(oil.sparkSession, start, end)
+    w = Window.orderBy("date").rowsBetween(Window.unboundedPreceding, Window.currentRow)
+    return (
+        dates.join(oil, "date", "left")
+             .withColumn("oil_price", F.last("dcoilwtico", ignorenulls=True).over(w))
+             .select("date", "oil_price")
+    )
